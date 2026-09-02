@@ -17,13 +17,23 @@ lib/normalize.ts — maps your sheet's actual column names to
 lib/query-engine.ts — parses your question (dates, status, keywords)
                        and filters to ONLY the matching rows
         ↓
-Claude (via Anthropic API) — phrases the answer using just those rows
+Google Gemini (free tier) — phrases the answer using just those rows
         ↓
 Chat UI
 ```
 
 The sheet is fetched fresh on every question — there's no caching or database, so
 whatever your team last typed into the sheet is what NEXUS sees.
+
+## Try it now with demo data (no sheet needed yet)
+
+If `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_PRIVATE_KEY`, or `GOOGLE_SHEET_ID` aren't
+set, NEXUS automatically uses built-in dummy data (`lib/mock-data.ts`) shaped like a
+real sheet export, instead of erroring. This means you can test the full chat flow —
+including real Gemini responses — with just a `GEMINI_API_KEY` set, before your
+actual sheet exists. The header shows an amber "Demo Data" indicator whenever this
+fallback is active, and it switches to your real sheet automatically the moment you
+add the three Google env vars — no code changes needed.
 
 ## 1. Set up the Google Sheets connection
 
@@ -35,9 +45,9 @@ whatever your team last typed into the sheet is what NEXUS sees.
 6. Copy your Sheet's ID from its URL:
    `https://docs.google.com/spreadsheets/d/`**`THIS_PART`**`/edit`
 
-## 2. Set up Anthropic
+## 2. Set up Gemini (free, no credit card required)
 
-Get an API key from the [Anthropic Console](https://console.anthropic.com/).
+Go to [Google AI Studio](https://aistudio.google.com/app/apikey) and click **Create API key**. No billing setup needed for the free tier.
 
 ## 3. Configure environment variables
 
@@ -50,8 +60,8 @@ Fill in `.env.local` with:
 - `GOOGLE_PRIVATE_KEY` — the `private_key` field from the downloaded JSON (keep the `\n` sequences and quotes)
 - `GOOGLE_SHEET_ID` — from the sheet's URL
 - `GOOGLE_SHEET_RANGE` — the tab name, e.g. `Sheet1` (defaults to `Sheet1` if omitted)
-- `ANTHROPIC_API_KEY` — your Anthropic key
-- `ANTHROPIC_MODEL` — defaults to `claude-sonnet-5` if omitted
+- `GEMINI_API_KEY` — your Gemini key from AI Studio
+- `GEMINI_MODEL` — defaults to `gemini-2.5-flash` if omitted
 
 ## 4. Install and run
 
