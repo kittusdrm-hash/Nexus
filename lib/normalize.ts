@@ -1,22 +1,22 @@
 import { CanonicalRow } from './types';
+import { ColumnMapping } from './detect-columns';
 
 /**
- * The sheet's exact column names may vary ("Owner" vs "Person",
- * "Deadline" vs "Due Date", etc). We match headers by pattern instead
- * of exact string so NEXUS keeps working if the team tweaks column
- * names slightly.
+ * Fallback ONLY: used for any field the AI-based detection (detect-columns.ts)
+ * didn't confidently map, or if that call fails entirely (network issue, etc).
+ * Keeps the app working even in a worst-case scenario.
  */
 const FIELD_PATTERNS: [keyof Omit<CanonicalRow, 'raw'>, RegExp][] = [
-  ['due', /due/i],
+  ['due', /due|target|deadline/i],
   ['lastUpdated', /last.?updated|updated.?(on|at)?$/i],
   ['person', /person|owner|assignee|assigned|who/i],
   ['project', /project|client|account/i],
   ['status', /status|state/i],
   ['priority', /priority/i],
   ['notes', /note|comment|remark/i],
-  ['task', /task|activity|title/i],
-  ['description', /description|details|summary/i],
-  ['date', /^date$|work.?date|log.?date|entry.?date/i],
+  ['task', /task|title/i],
+  ['description', /description|details|summary|activity/i],
+  ['date', /date/i],
 ];
 
 function parseDate(val: string | undefined): Date | null {
@@ -39,7 +39,7 @@ function parseDate(val: string | undefined): Date | null {
   return null;
 }
 
-function mapHeaders(headers: string[]): Partial<Record<keyof Omit<CanonicalRow, 'raw'>, string>> {
+function mapHeadersFallback(headers: string[]): Partial<Record<keyof Omit<CanonicalRow, 'raw'>, string>> {
   const map: Partial<Record<keyof Omit<CanonicalRow, 'raw'>, string>> = {};
   for (const header of headers) {
     for (const [canonical, pattern] of FIELD_PATTERNS) {
@@ -52,11 +52,14 @@ function mapHeaders(headers: string[]): Partial<Record<keyof Omit<CanonicalRow, 
   return map;
 }
 
-export function normalizeRows(rawRows: Record<string, string>[]): CanonicalRow[] {
+export function normalizeRows(rawRows: Record<string, string>[], aiMapping: ColumnMapping = {}): CanonicalRow[] {
   if (rawRows.length === 0) return [];
 
   const headers = Object.keys(rawRows[0]);
-  const map = mapHeaders(headers);
+  const fallback = mapHeadersFallback(headers);
+  // AI-detected mapping wins wherever it found something; keyword fallback
+  // fills in anything it missed.
+  const map = { ...fallback, ...aiMapping };
 
   return rawRows
     .filter((r) => Object.values(r).some((v) => v && v.trim() !== ''))
@@ -74,3 +77,4 @@ export function normalizeRows(rawRows: Record<string, string>[]): CanonicalRow[]
       raw: r,
     }));
 }
+

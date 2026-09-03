@@ -48,10 +48,10 @@ export function isThisWeek(d: Date): boolean {
  *  regardless of what the sheet's Status column literally says. */
 export function deriveStatus(row: CanonicalRow): string {
   const raw = (row.status || '').toLowerCase();
-  if (raw.includes('complete') || raw.includes('done')) return 'Completed';
+  if (raw.includes('complete') || raw.includes('done') || raw.includes('closed') || raw.includes('finished') || raw.includes('resolved')) return 'Completed';
   if (row.due && stripTime(row.due) < stripTime(new Date())) return 'Overdue';
   if (raw.includes('progress') || raw.includes('ongoing')) return 'In Progress';
-  return row.status ? row.status : 'Pending';
+  return 'Pending';
 }
 
 const STOP_WORDS = new Set([

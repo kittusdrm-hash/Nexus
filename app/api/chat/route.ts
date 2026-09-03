@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchSheetRows, isDemoMode } from '@/lib/sheets';
 import { normalizeRows } from '@/lib/normalize';
+import { detectColumnMapping } from '@/lib/detect-columns';
 import { analyzeQuery, filterRows, summarize, deriveStatus } from '@/lib/query-engine';
 import { ChatRequestBody, CardRow } from '@/lib/types';
 
@@ -16,9 +17,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing "message" in request body.' }, { status: 400 });
     }
 
-    // 1. Pull the latest sheet data (source of truth, read-only).
+    // 1. Pull the latest sheet data (source of truth, read-only), then
+    //    figure out what each of THIS sheet's actual columns means —
+    //    self-adapting, so renaming a column never breaks this again.
     const rawRows = await fetchSheetRows();
-    const rows = normalizeRows(rawRows);
+    const headers = rawRows.length > 0 ? Object.keys(rawRows[0]) : [];
+    const aiMapping = await detectColumnMapping(headers);
+    const rows = normalizeRows(rawRows, aiMapping);
 
     // 2. Parse the question into filters and narrow down to relevant rows
     //    BEFORE anything reaches the LLM. This keeps context small and
@@ -54,7 +59,7 @@ Matched rows for this question (${contextRows.length} of ${rows.length} total ro
 ${JSON.stringify(contextRows, null, 2)}`;
 
     // 3. Ask Gemini to phrase the answer, strictly grounded in the matched rows.
-    const geminiModel = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+    const geminiModel = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
     const geminiKey = process.env.GEMINI_API_KEY;
 
     if (!geminiKey) {
