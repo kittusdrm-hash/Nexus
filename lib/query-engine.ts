@@ -49,6 +49,7 @@ export function isThisWeek(d: Date): boolean {
 export function deriveStatus(row: CanonicalRow): string {
   const raw = (row.status || '').toLowerCase();
   if (raw.includes('complete') || raw.includes('done') || raw.includes('closed') || raw.includes('finished') || raw.includes('resolved')) return 'Completed';
+  if (raw.includes('overdue')) return 'Overdue';
   if (row.due && stripTime(row.due) < stripTime(new Date())) return 'Overdue';
   if (raw.includes('progress') || raw.includes('ongoing')) return 'In Progress';
   return 'Pending';
@@ -123,31 +124,62 @@ export function filterRows(rows: CanonicalRow[], f: Filters): CanonicalRow[] {
     return true;
   });
 
-  const priorityRank = (p: string) => {
-    const v = (p || '').toLowerCase();
-    if (v.startsWith('high')) return 0;
-    if (v.startsWith('med')) return 1;
-    return 2;
-  };
+  return sortRows(matched);
+}
 
-  return matched.sort(
+export type QuickCategory = 'completed' | 'due' | 'ongoing' | 'research' | 'all';
+
+// Tolerates the common "Reasearch" typo, so a misspelled entry doesn't
+// silently disappear from this category.
+const RESEARCH_KEYWORDS = ['research', 'reasearch'];
+
+function priorityRank(p: string): number {
+  const v = (p || '').toLowerCase();
+  if (v.startsWith('high')) return 0;
+  if (v.startsWith('med')) return 1;
+  return 2;
+}
+
+/** Shared sort so every view (chat answers and quick-category clicks) orders
+ *  results the same way: highest priority first, most recent next. */
+export function sortRows(rows: CanonicalRow[]): CanonicalRow[] {
+  return [...rows].sort(
     (a, b) =>
       priorityRank(a.priority) - priorityRank(b.priority) ||
       (b.date?.getTime() || 0) - (a.date?.getTime() || 0)
   );
 }
 
-export function summarize(rows: CanonicalRow[]): SheetStats {
-  let pending = 0;
-  let overdue = 0;
-  let completedThisWeek = 0;
-
-  for (const row of rows) {
-    const status = deriveStatus(row);
-    if (status === 'Pending' || status === 'In Progress') pending++;
-    if (status === 'Overdue') overdue++;
-    if (status === 'Completed' && row.date && isThisWeek(row.date)) completedThisWeek++;
+/**
+ * Direct, no-AI-involved filtering for the clickable KPI buttons. These never
+ * touch the Gemini API — they just read the sheet and filter — so clicking
+ * them is instant and never counts against your daily AI quota.
+ */
+export function filterByCategory(rows: CanonicalRow[], category: QuickCategory): CanonicalRow[] {
+  switch (category) {
+    case 'completed':
+      return rows.filter((r) => deriveStatus(r) === 'Completed');
+    case 'due':
+      return rows.filter((r) => r.due !== null);
+    case 'ongoing':
+      return rows.filter((r) => deriveStatus(r) === 'In Progress');
+    case 'research':
+      return rows.filter((r) => {
+        const hay = `${r.project} ${r.task} ${r.description} ${r.notes}`.toLowerCase();
+        return RESEARCH_KEYWORDS.some((kw) => hay.includes(kw));
+      });
+    case 'all':
+    default:
+      return rows;
   }
+}
 
-  return { pending, overdue, completedThisWeek };
+export function categoryCounts(rows: CanonicalRow[]): SheetStats {
+  return {
+    completed: filterByCategory(rows, 'completed').length,
+    due: filterByCategory(rows, 'due').length,
+    ongoing: filterByCategory(rows, 'ongoing').length,
+    research: filterByCategory(rows, 'research').length,
+    all: rows.length,
+  };
 }

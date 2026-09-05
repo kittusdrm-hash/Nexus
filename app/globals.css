@@ -105,9 +105,24 @@ html, body {
   display: flex; align-items: center; gap: 6px; white-space: nowrap;
 }
 .chip b { font-size: 12px; }
-.chip.pending { color: var(--accent-amber); background: var(--accent-amber-dim); border-color: rgba(255, 180, 84, 0.25); }
-.chip.done { color: var(--accent-cyan); background: var(--accent-cyan-dim); border-color: rgba(77, 232, 212, 0.25); }
-.chip.overdue { color: var(--accent-coral); background: var(--accent-coral-dim); border-color: rgba(255, 95, 109, 0.25); }
+.chip.completed { color: var(--accent-cyan); background: var(--accent-cyan-dim); border-color: rgba(77, 232, 212, 0.25); }
+.chip.due { color: var(--accent-amber); background: var(--accent-amber-dim); border-color: rgba(255, 180, 84, 0.25); }
+.chip.ongoing { color: var(--accent-violet); background: var(--accent-violet-dim); border-color: rgba(139, 127, 255, 0.25); }
+.chip.research { color: var(--accent-coral); background: var(--accent-coral-dim); border-color: rgba(255, 95, 109, 0.25); }
+.chip.all { color: var(--text-muted); background: rgba(255, 255, 255, 0.04); border-color: var(--border-glass); }
+.chip.clickable { cursor: pointer; transition: transform 0.12s ease, border-color 0.12s ease; user-select: none; }
+.chip.clickable:hover { transform: translateY(-1px); border-color: var(--border-glass-hi); }
+.chip.clickable:active { transform: translateY(0); }
+
+.refresh-btn {
+  width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+  border: 1px solid var(--border-glass); background: rgba(255, 255, 255, 0.02);
+  color: var(--text-muted); display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+.refresh-btn:hover { color: var(--accent-cyan); border-color: rgba(77, 232, 212, 0.3); }
+.refresh-btn.spinning svg { animation: refresh-spin 0.7s linear infinite; }
+@keyframes refresh-spin { to { transform: rotate(360deg); } }
 
 .hero { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 26px 0 22px; gap: 14px; }
 .orb-wrap { position: relative; width: 120px; height: 120px; }

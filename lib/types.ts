@@ -31,7 +31,9 @@ export interface CardRow {
 }
 
 export interface SheetStats {
-  pending: number;
-  overdue: number;
-  completedThisWeek: number;
+  completed: number;
+  due: number;
+  ongoing: number;
+  research: number;
+  all: number;
 }

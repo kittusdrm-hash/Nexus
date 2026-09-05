@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { CardRow, SheetStats } from '@/lib/types';
+import type { QuickCategory } from '@/lib/query-engine';
 
 interface Msg {
   role: 'user' | 'assistant';
@@ -12,10 +13,18 @@ interface Msg {
 const SUGGESTIONS = [
   'Good morning. Catch me up on yesterday.',
   'What should I focus on today?',
-  'What is overdue?',
+  'What is due?',
   'What is pending?',
   'What did the team complete yesterday?',
-  'What is due today?',
+  'What is ongoing?',
+];
+
+const CATEGORY_BUTTONS: { key: QuickCategory; label: string; cls: string }[] = [
+  { key: 'completed', label: 'Completed', cls: 'completed' },
+  { key: 'due', label: 'Due', cls: 'due' },
+  { key: 'ongoing', label: 'Ongoing Project', cls: 'ongoing' },
+  { key: 'research', label: 'Research', cls: 'research' },
+  { key: 'all', label: 'Current Activity', cls: 'all' },
 ];
 
 function fmtDate(iso: string | null): string {
@@ -33,28 +42,43 @@ export default function Home() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState<SheetStats | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [demoMode, setDemoMode] = useState(false);
   const [lastKeyword, setLastKeyword] = useState<string | undefined>(undefined);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  async function loadStats() {
+    try {
+      const res = await fetch('/api/summary');
+      const data = await res.json();
+      if (data.error) {
+        setConnectionError(data.error);
+      } else {
+        setConnectionError(null);
+        setStats(data);
+        setDemoMode(Boolean(data.demo));
+      }
+    } catch {
+      setConnectionError('Could not reach the server.');
+    }
+  }
+
   useEffect(() => {
-    fetch('/api/summary')
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.error) setConnectionError(data.error);
-        else {
-          setStats(data);
-          setDemoMode(Boolean(data.demo));
-        }
-      })
-      .catch(() => setConnectionError('Could not reach the server.'));
+    loadStats();
   }, []);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages, loading]);
+
+  async function handleRefresh() {
+    if (refreshing) return;
+    setRefreshing(true);
+    await loadStats();
+    setRefreshing(false);
+  }
 
   async function send(text?: string) {
     const q = (text ?? input).trim();
@@ -91,6 +115,35 @@ export default function Home() {
     }
   }
 
+  async function handleCategoryClick(category: QuickCategory, label: string) {
+    if (loading) return;
+    setLoading(true);
+
+    try {
+      const res = await fetch(`/api/category?category=${category}`);
+      const data = await res.json();
+
+      if (data.error) {
+        setMessages((prev) => [...prev, { role: 'assistant', content: `Something went wrong: ${data.error}` }]);
+      } else {
+        const heading =
+          data.count === 0
+            ? `No items found for <b>${label}</b>.`
+            : `Showing <b>${data.count}</b> item${data.count !== 1 ? 's' : ''} for <b>${label}</b>.`;
+        setMessages((prev) => [...prev, { role: 'assistant', content: heading, rows: data.rows }]);
+        if (data.stats) setStats(data.stats);
+        setDemoMode(Boolean(data.demo));
+      }
+    } catch {
+      setMessages((prev) => [
+        ...prev,
+        { role: 'assistant', content: "Couldn't reach the server. Check your connection and try again." },
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   const empty = messages.length === 0;
 
   return (
@@ -109,11 +162,34 @@ export default function Home() {
           <div className="status-cluster">
             {stats && (
               <div className="stat-chips">
-                <div className="chip pending"><b>{stats.pending}</b>&nbsp;Pending</div>
-                <div className="chip overdue"><b>{stats.overdue}</b>&nbsp;Overdue</div>
-                <div className="chip done"><b>{stats.completedThisWeek}</b>&nbsp;Done this wk</div>
+                {CATEGORY_BUTTONS.map((c) => (
+                  <div
+                    key={c.key}
+                    className={`chip clickable ${c.cls}`}
+                    onClick={() => handleCategoryClick(c.key, c.label)}
+                    title={`Show ${c.label}`}
+                  >
+                    <b>{stats[c.key]}</b>&nbsp;{c.label}
+                  </div>
+                ))}
               </div>
             )}
+            <button
+              className={`refresh-btn ${refreshing ? 'spinning' : ''}`}
+              onClick={handleRefresh}
+              aria-label="Refresh"
+              title="Refresh data"
+            >
+              <svg viewBox="0 0 24 24" width={14} height={14} fill="none">
+                <path
+                  d="M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3M18 4v4h-4M6 20v-4h4"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
             <div className="sync-pill">
               <span className={`sync-dot ${connectionError ? 'error' : demoMode ? 'demo' : ''}`} />
               <span>{connectionError ? 'Offline' : demoMode ? 'Demo Data' : 'Synced'}</span>
@@ -143,7 +219,7 @@ export default function Home() {
             </div>
             <div className="hero-title">Good morning. What do you need to know?</div>
             <div className="hero-sub">
-              Connected to your team&apos;s shared sheet. Ask about pending work, overdue items, or what happened yesterday.
+              Connected to your team&apos;s shared sheet. Ask about pending work, due items, or what happened yesterday — or click a category above.
             </div>
             <div className="chips-row">
               {SUGGESTIONS.map((s) => (

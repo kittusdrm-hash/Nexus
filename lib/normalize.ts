@@ -24,17 +24,29 @@ function parseDate(val: string | undefined): Date | null {
   const trimmed = val.trim();
   if (!trimmed) return null;
 
-  const direct = new Date(trimmed);
-  if (!isNaN(direct.getTime())) return direct;
-
-  // Try dd/mm/yyyy or dd-mm-yyyy (common outside the US)
+  // Prefer DD/MM/YYYY (the common convention outside the US) for slash or
+  // dash numeric dates — this avoids silently misreading "03/09/2026" as
+  // March 9th when it actually means September 3rd.
   const m = trimmed.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
   if (m) {
-    const [, d, mo, y] = m;
+    const [, first, second, y] = m;
     const year = y.length === 2 ? `20${y}` : y;
-    const alt = new Date(`${year}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}`);
-    if (!isNaN(alt.getTime())) return alt;
+    const d = parseInt(first, 10);
+    const mo = parseInt(second, 10);
+
+    if (mo <= 12) {
+      const asDayMonth = new Date(`${year}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`);
+      if (!isNaN(asDayMonth.getTime())) return asDayMonth;
+    }
+    // Fall back to swapped (MM/DD) only if DD/MM wasn't a valid date.
+    if (d <= 12) {
+      const asMonthDay = new Date(`${year}-${String(d).padStart(2, '0')}-${String(mo).padStart(2, '0')}`);
+      if (!isNaN(asMonthDay.getTime())) return asMonthDay;
+    }
   }
+
+  const direct = new Date(trimmed);
+  if (!isNaN(direct.getTime())) return direct;
 
   return null;
 }
